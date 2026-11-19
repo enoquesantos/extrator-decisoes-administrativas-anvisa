@@ -1,0 +1,7 @@
+# Utilizamos requests com urllib3 (para retentativas automáticas de rede), beautifulsoup4 + lxml para o parsing rápido do HTML do DSpace, e pymupdf (fitz), que é consideravelmente mais rápida e precisa que PyPDF2 ou pdfplumber na extração de texto de documentos jurídicos em português.
+requests>=2.32.3
+beautifulsoup4>=4.12.3
+lxml>=5.3.0
+pypdf>=5.0.0
+urllib3>=2.2.3
+openpyxl>=3.1.5

@@ -1,7 +1,6 @@
 -- ============================================================================
 -- CONSULTAS DE ANÁLISE E FILTRAGEM DA AMOSTRA - DECISÕES ANVISA (SQLite + FTS5)
 -- Banco alvo: anvisa_decisoes.db
--- sqlite3 anvisa_decisoes.db < consultas_tese.sql
 -- ============================================================================
 
 
@@ -14,7 +13,10 @@
 SELECT
     item_id,
     ano_publicacao,
+    data_assinatura,
     titulo,
+    origem_ais,
+    porte,
     multa_principal_num,
     valor_multa_raw,
     incisos_art_10_raw
@@ -46,7 +48,8 @@ ORDER BY total_decisoes DESC;
 -- ----------------------------------------------------------------------------
 SELECT
     d.item_id,
-    d.data_publicacao,
+    d.data_assinatura,
+    d.origem_ais,
     d.valor_multa_raw,
     d.classificacao_infracao,
     d.url_pdf
@@ -86,6 +89,7 @@ ORDER BY rank;
 SELECT
     d.item_id,
     d.titulo,
+    d.primariedade,
     d.valor_multa_raw,
     snippet(decisoes_fts, 2, '[', ']', '...', 30) AS contexto
 FROM decisoes_fts
@@ -94,7 +98,7 @@ WHERE decisoes_fts MATCH 'NEAR(reincidencia agravante, 15)';
 
 
 -- ----------------------------------------------------------------------------
--- 6. ESTATÍSTICA AGREGADA POR ANO DE PUBLICAÇÃO (SÉRIE HISTÓRICA)
+-- 6. ESTATÍSTICA AGREGADA POR ANO DE ASSINATURA/PUBLICAÇÃO (SÉRIE HISTÓRICA)
 -- O que faz: Agrupa as decisões por ano, contabilizando o volume total de
 -- julgados, quantos possuem multa pecuniária extraída, o valor total somado,
 -- a média aritmética, o menor e o maior valor de multa aplicados em cada ano.
@@ -147,3 +151,42 @@ SELECT
 FROM decisoes
 GROUP BY ano_publicacao, classificacao_infracao
 ORDER BY ano_publicacao ASC, total_decisoes DESC;
+
+
+-- ----------------------------------------------------------------------------
+-- 9. ESTATÍSTICA AGREGADA POR ORIGEM DO AIS (GGFIS-DF, CMPAF, PVPAF, COPAS...)
+-- O que faz: Agrupa as decisões pela unidade de origem do Auto de Infração
+-- Sanitária, exibindo o volume de processos, a média de incisos imputados
+-- por decisão e os indicadores financeiros das multas por área autuadora.
+-- ----------------------------------------------------------------------------
+SELECT
+    origem_ais,
+    COUNT(*) AS total_decisoes,
+    COUNT(multa_principal_num) AS qtd_com_multa,
+    ROUND(AVG(total_incisos_art10), 2) AS media_incisos_por_decisao,
+    ROUND(COALESCE(SUM(multa_principal_num), 0), 2) AS soma_multas_brl,
+    ROUND(COALESCE(AVG(multa_principal_num), 0), 2) AS media_multa_brl,
+    ROUND(MAX(multa_principal_num), 2) AS maior_multa_brl
+FROM decisoes
+GROUP BY origem_ais
+ORDER BY total_decisoes DESC;
+
+
+-- ----------------------------------------------------------------------------
+-- 10. ESTATÍSTICA AGREGADA POR NÍVEL DE RISCO SANITÁRIO
+-- O que faz: Agrupa as decisões por grau de risco (Baixo, Médio, Alto, Muito
+-- Alto), ordenando em escala crescente de severidade para facilitar a análise
+-- de proporcionalidade entre o risco sanitário e o valor médio da multa.
+-- ----------------------------------------------------------------------------
+SELECT
+    risco,
+    COUNT(*) AS total_decisoes,
+    COUNT(multa_principal_num) AS qtd_com_multa,
+    ROUND(COALESCE(SUM(multa_principal_num), 0), 2) AS soma_multas_brl,
+    ROUND(COALESCE(AVG(multa_principal_num), 0), 2) AS media_multa_brl,
+    ROUND(MIN(multa_principal_num), 2) AS menor_multa_brl,
+    ROUND(MAX(multa_principal_num), 2) AS maior_multa_brl
+FROM decisoes
+GROUP BY risco
+ORDER BY CASE risco
+    WHEN 'Baixo'
